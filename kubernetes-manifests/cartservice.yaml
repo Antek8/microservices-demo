@@ -19,6 +19,7 @@ metadata:
   labels:
     app: cartservice
 spec:
+  replicas: 3  # Ensuring high availability
   selector:
     matchLabels:
       app: cartservice
@@ -28,7 +29,7 @@ spec:
         app: cartservice
     spec:
       serviceAccountName: cartservice
-      terminationGracePeriodSeconds: 5
+      terminationGracePeriodSeconds: 30  # Allowing more time for graceful shutdown
       securityContext:
         fsGroup: 1000
         runAsGroup: 1000
@@ -57,12 +58,13 @@ spec:
             cpu: 300m
             memory: 128Mi
         readinessProbe:
-          initialDelaySeconds: 15
+          initialDelaySeconds: 10  # Reduced delay for faster readiness detection
+          periodSeconds: 5  # Increased frequency of readiness checks
           grpc:
             port: 7070
         livenessProbe:
-          initialDelaySeconds: 15
-          periodSeconds: 10
+          initialDelaySeconds: 10  # Reduced delay for faster failure detection
+          periodSeconds: 5  # Increased frequency of liveness checks
           grpc:
             port: 7070
 ---
@@ -93,6 +95,7 @@ metadata:
   labels:
     app: redis-cart
 spec:
+  replicas: 2  # Ensuring high availability
   selector:
     matchLabels:
       app: redis-cart
@@ -119,10 +122,12 @@ spec:
         ports:
         - containerPort: 6379
         readinessProbe:
+          initialDelaySeconds: 5  # Adding initial delay for readiness probe
           periodSeconds: 5
           tcpSocket:
             port: 6379
         livenessProbe:
+          initialDelaySeconds: 5  # Adding initial delay for liveness probe
           periodSeconds: 5
           tcpSocket:
             port: 6379
@@ -154,3 +159,33 @@ spec:
   - name: tcp-redis
     port: 6379
     targetPort: 6379
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cartservice
+  labels:
+    app: cartservice
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cartservice
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: redis-cart
+  labels:
+    app: redis-cart
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: redis-cart
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
