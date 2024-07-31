@@ -25,6 +25,7 @@ metadata:
   labels:
     app: currencyservice
 spec:
+  replicas: 3  # Ensuring high availability
   selector:
     matchLabels:
       app: currencyservice
@@ -34,7 +35,7 @@ spec:
         app: currencyservice
     spec:
       serviceAccountName: currencyservice
-      terminationGracePeriodSeconds: 5
+      terminationGracePeriodSeconds: 30  # Allowing more time for graceful shutdown
       securityContext:
         fsGroup: 1000
         runAsGroup: 1000
@@ -61,9 +62,13 @@ spec:
         readinessProbe:
           grpc:
             port: 7000
+          initialDelaySeconds: 10  # Reduced delay for faster readiness detection
+          periodSeconds: 5  # Increased frequency of readiness checks
         livenessProbe:
           grpc:
             port: 7000
+          initialDelaySeconds: 10  # Reduced delay for faster failure detection
+          periodSeconds: 5  # Increased frequency of liveness checks
         resources:
           requests:
             cpu: 100m
@@ -91,6 +96,31 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: currencyservice
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: currencyservice-pdb
+spec:
+  minAvailable: 1  # Ensuring at least one pod is always available
+  selector:
+    matchLabels:
+      app: currencyservice
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: currencyservice
+  labels:
+    app: currencyservice
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: currencyservice
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -184,6 +214,7 @@ metadata:
   labels:
     app: productcatalogservice
 spec:
+  replicas: 3  # Ensuring high availability
   selector:
     matchLabels:
       app: productcatalogservice
@@ -193,7 +224,7 @@ spec:
         app: productcatalogservice
     spec:
       serviceAccountName: productcatalogservice
-      terminationGracePeriodSeconds: 5
+      terminationGracePeriodSeconds: 30  # Allowing more time for graceful shutdown
       securityContext:
         fsGroup: 1000
         runAsGroup: 1000
@@ -219,9 +250,13 @@ spec:
         readinessProbe:
           grpc:
             port: 3550
+          initialDelaySeconds: 10  # Reduced delay for faster readiness detection
+          periodSeconds: 5  # Increased frequency of readiness checks
         livenessProbe:
           grpc:
             port: 3550
+          initialDelaySeconds: 10  # Reduced delay for faster failure detection
+          periodSeconds: 5  # Increased frequency of liveness checks
         resources:
           requests:
             cpu: 100m
@@ -250,6 +285,31 @@ kind: ServiceAccount
 metadata:
   name: productcatalogservice
 ---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: productcatalogservice-pdb
+spec:
+  minAvailable: 1  # Ensuring at least one pod is always available
+  selector:
+    matchLabels:
+      app: productcatalogservice
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: productcatalogservice
+  labels:
+    app: productcatalogservice
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: productcatalogservice
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -257,6 +317,7 @@ metadata:
   labels:
     app: checkoutservice
 spec:
+  replicas: 3  # Ensuring high availability
   selector:
     matchLabels:
       app: checkoutservice
@@ -286,9 +347,13 @@ spec:
           readinessProbe:
             grpc:
               port: 5050
+            initialDelaySeconds: 10  # Reduced delay for faster readiness detection
+            periodSeconds: 5  # Increased frequency of readiness checks
           livenessProbe:
             grpc:
               port: 5050
+            initialDelaySeconds: 10  # Reduced delay for faster failure detection
+            periodSeconds: 5  # Increased frequency of liveness checks
           env:
           - name: PORT
             value: "5050"
@@ -332,6 +397,36 @@ kind: ServiceAccount
 metadata:
   name: checkoutservice
 ---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: checkoutservice-pdb
+spec:
+  minAvailable: 1  # Ensuring at least one pod is always available
+  selector:
+    matchLabels:
+      app: checkoutservice
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: checkoutservice
+  labels:
+    app: checkoutservice
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: checkoutservice
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: checkoutservice
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -339,6 +434,7 @@ metadata:
   labels:
     app: shippingservice
 spec:
+  replicas: 3  # Ensuring high availability
   selector:
     matchLabels:
       app: shippingservice
@@ -348,6 +444,7 @@ spec:
         app: shippingservice
     spec:
       serviceAccountName: shippingservice
+      terminationGracePeriodSeconds: 30  # Allowing more time for graceful shutdown
       securityContext:
         fsGroup: 1000
         runAsGroup: 1000
@@ -362,7 +459,7 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: gcr.io/google-samples/microservices-demo/shippingservice:v0.10.0
+        image: gcr.io/google-samples/microservices-demo/shippingservice:v0.10.0 
         ports:
         - containerPort: 50051
         env:
@@ -371,12 +468,15 @@ spec:
         - name: DISABLE_PROFILER
           value: "1"
         readinessProbe:
-          periodSeconds: 5
           grpc:
             port: 50051
+          initialDelaySeconds: 10  # Reduced delay for faster readiness detection
+          periodSeconds: 5  # Increased frequency of readiness checks
         livenessProbe:
           grpc:
             port: 50051
+          initialDelaySeconds: 10  # Reduced delay for faster failure detection
+          periodSeconds: 5  # Increased frequency of liveness checks
         resources:
           requests:
             cpu: 100m
@@ -404,6 +504,31 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: shippingservice
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: shippingservice-pdb
+spec:
+  minAvailable: 1  # Ensuring at least one pod is always available
+  selector:
+    matchLabels:
+      app: shippingservice
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: shippingservice
+  labels:
+    app: shippingservice
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: shippingservice
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -591,6 +716,7 @@ metadata:
   labels:
     app: emailservice
 spec:
+  replicas: 3  # Ensuring high availability
   selector:
     matchLabels:
       app: emailservice
@@ -600,7 +726,7 @@ spec:
         app: emailservice
     spec:
       serviceAccountName: emailservice
-      terminationGracePeriodSeconds: 5
+      terminationGracePeriodSeconds: 30  # Allowing more time for graceful shutdown
       securityContext:
         fsGroup: 1000
         runAsGroup: 1000
@@ -615,7 +741,7 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: gcr.io/google-samples/microservices-demo/emailservice:v0.10.0
+        image: gcr.io/google-samples/microservices-demo/emailservice:v0.10.0 
         ports:
         - containerPort: 8080
         env:
@@ -624,13 +750,15 @@ spec:
         - name: DISABLE_PROFILER
           value: "1"
         readinessProbe:
-          periodSeconds: 5
           grpc:
             port: 8080
+          initialDelaySeconds: 10  # Reduced delay for faster readiness detection
+          periodSeconds: 5  # Increased frequency of readiness checks
         livenessProbe:
-          periodSeconds: 5
           grpc:
             port: 8080
+          initialDelaySeconds: 10  # Reduced delay for faster failure detection
+          periodSeconds: 5  # Increased frequency of liveness checks
         resources:
           requests:
             cpu: 100m
@@ -659,6 +787,31 @@ kind: ServiceAccount
 metadata:
   name: emailservice
 ---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: emailservice-pdb
+spec:
+  minAvailable: 1  # Ensuring at least one pod is always available
+  selector:
+    matchLabels:
+      app: emailservice
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: emailservice
+  labels:
+    app: emailservice
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: emailservice
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -666,6 +819,7 @@ metadata:
   labels:
     app: paymentservice
 spec:
+  replicas: 3  # Ensuring high availability
   selector:
     matchLabels:
       app: paymentservice
@@ -675,7 +829,7 @@ spec:
         app: paymentservice
     spec:
       serviceAccountName: paymentservice
-      terminationGracePeriodSeconds: 5
+      terminationGracePeriodSeconds: 30  # Allowing more time for graceful shutdown
       securityContext:
         fsGroup: 1000
         runAsGroup: 1000
@@ -690,7 +844,7 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: gcr.io/google-samples/microservices-demo/paymentservice:v0.10.0
+        image: gcr.io/google-samples/microservices-demo/paymentservice:v0.10.0 
         ports:
         - containerPort: 50051
         env:
@@ -701,9 +855,13 @@ spec:
         readinessProbe:
           grpc:
             port: 50051
+          initialDelaySeconds: 10  # Reduced delay for faster readiness detection
+          periodSeconds: 5  # Increased frequency of readiness checks
         livenessProbe:
           grpc:
             port: 50051
+          initialDelaySeconds: 10  # Reduced delay for faster failure detection
+          periodSeconds: 5  # Increased frequency of liveness checks
         resources:
           requests:
             cpu: 100m
@@ -731,6 +889,31 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: paymentservice
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: paymentservice-pdb
+spec:
+  minAvailable: 1  # Ensuring at least one pod is always available
+  selector:
+    matchLabels:
+      app: paymentservice
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: paymentservice
+  labels:
+    app: paymentservice
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: paymentservice
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -874,6 +1057,7 @@ metadata:
   labels:
     app: recommendationservice
 spec:
+  replicas: 3  # Ensuring high availability
   selector:
     matchLabels:
       app: recommendationservice
@@ -883,7 +1067,7 @@ spec:
         app: recommendationservice
     spec:
       serviceAccountName: recommendationservice
-      terminationGracePeriodSeconds: 5
+      terminationGracePeriodSeconds: 30  # Allowing more time for graceful shutdown
       securityContext:
         fsGroup: 1000
         runAsGroup: 1000
@@ -898,17 +1082,9 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: gcr.io/google-samples/microservices-demo/recommendationservice:v0.10.0
+        image:  gcr.io/google-samples/microservices-demo/recommendationservice:v0.10.0 
         ports:
         - containerPort: 8080
-        readinessProbe:
-          periodSeconds: 5
-          grpc:
-            port: 8080
-        livenessProbe:
-          periodSeconds: 5
-          grpc:
-            port: 8080
         env:
         - name: PORT
           value: "8080"
@@ -916,6 +1092,16 @@ spec:
           value: "productcatalogservice:3550"
         - name: DISABLE_PROFILER
           value: "1"
+        readinessProbe:
+          grpc:
+            port: 8080
+          initialDelaySeconds: 10  # Reduced delay for faster readiness detection
+          periodSeconds: 5  # Increased frequency of readiness checks
+        livenessProbe:
+          grpc:
+            port: 8080
+          initialDelaySeconds: 10  # Reduced delay for faster failure detection
+          periodSeconds: 5  # Increased frequency of liveness checks
         resources:
           requests:
             cpu: 100m
@@ -944,6 +1130,31 @@ kind: ServiceAccount
 metadata:
   name: recommendationservice
 ---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: recommendationservice-pdb
+spec:
+  minAvailable: 1  # Ensuring at least one pod is always available
+  selector:
+    matchLabels:
+      app: recommendationservice
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: recommendationservice
+  labels:
+    app: recommendationservice
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: recommendationservice
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -951,6 +1162,7 @@ metadata:
   labels:
     app: adservice
 spec:
+  replicas: 3  # Ensuring high availability
   selector:
     matchLabels:
       app: adservice
@@ -960,7 +1172,7 @@ spec:
         app: adservice
     spec:
       serviceAccountName: adservice
-      terminationGracePeriodSeconds: 5
+      terminationGracePeriodSeconds: 30  # Allowing more time for graceful shutdown
       securityContext:
         fsGroup: 1000
         runAsGroup: 1000
@@ -989,15 +1201,15 @@ spec:
             cpu: 300m
             memory: 300Mi
         readinessProbe:
-          initialDelaySeconds: 20
-          periodSeconds: 15
           grpc:
             port: 9555
+          initialDelaySeconds: 10  # Reduced delay for faster readiness detection
+          periodSeconds: 5  # Increased frequency of readiness checks
         livenessProbe:
-          initialDelaySeconds: 20
-          periodSeconds: 15
           grpc:
             port: 9555
+          initialDelaySeconds: 10  # Reduced delay for faster failure detection
+          periodSeconds: 5  # Increased frequency of liveness checks
 ---
 apiVersion: v1
 kind: Service
@@ -1018,4 +1230,30 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: adservice
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: adservice-pdb
+spec:
+  minAvailable: 1  # Ensuring at least one pod is always available
+  selector:
+    matchLabels:
+      app: adservice
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: adservice
+  labels:
+    app: adservice
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: adservice
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+
 # [END gke_release_kubernetes_manifests_microservices_demo]
