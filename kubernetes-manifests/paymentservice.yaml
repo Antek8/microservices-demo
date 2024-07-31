@@ -19,6 +19,7 @@ metadata:
   labels:
     app: paymentservice
 spec:
+  replicas: 3  # Ensuring high availability
   selector:
     matchLabels:
       app: paymentservice
@@ -28,7 +29,7 @@ spec:
         app: paymentservice
     spec:
       serviceAccountName: paymentservice
-      terminationGracePeriodSeconds: 5
+      terminationGracePeriodSeconds: 30  # Allowing more time for graceful shutdown
       securityContext:
         fsGroup: 1000
         runAsGroup: 1000
@@ -54,9 +55,13 @@ spec:
         readinessProbe:
           grpc:
             port: 50051
+          initialDelaySeconds: 10  # Reduced delay for faster readiness detection
+          periodSeconds: 5  # Increased frequency of readiness checks
         livenessProbe:
           grpc:
             port: 50051
+          initialDelaySeconds: 10  # Reduced delay for faster failure detection
+          periodSeconds: 5  # Increased frequency of liveness checks
         resources:
           requests:
             cpu: 100m
@@ -84,3 +89,28 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: paymentservice
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: paymentservice-pdb
+spec:
+  minAvailable: 1  # Ensuring at least one pod is always available
+  selector:
+    matchLabels:
+      app: paymentservice
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: paymentservice
+  labels:
+    app: paymentservice
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: paymentservice
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80

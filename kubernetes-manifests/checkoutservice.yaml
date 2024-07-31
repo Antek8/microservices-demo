@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -19,6 +18,7 @@ metadata:
   labels:
     app: checkoutservice
 spec:
+  replicas: 3  # Ensuring high availability
   selector:
     matchLabels:
       app: checkoutservice
@@ -48,9 +48,13 @@ spec:
           readinessProbe:
             grpc:
               port: 5050
+            initialDelaySeconds: 10  # Reduced delay for faster readiness detection
+            periodSeconds: 5  # Increased frequency of readiness checks
           livenessProbe:
             grpc:
               port: 5050
+            initialDelaySeconds: 10  # Reduced delay for faster failure detection
+            periodSeconds: 5  # Increased frequency of liveness checks
           env:
           - name: PORT
             value: "5050"
@@ -93,3 +97,28 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: checkoutservice
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: checkoutservice-pdb
+spec:
+  minAvailable: 1  # Ensuring at least one pod is always available
+  selector:
+    matchLabels:
+      app: checkoutservice
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: checkoutservice
+  labels:
+    app: checkoutservice
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: checkoutservice
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
