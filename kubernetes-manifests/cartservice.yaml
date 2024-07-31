@@ -44,7 +44,7 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: <your-registry-server>/cartservice:latest  # Ensure this is correct
+        image: cartservice
         imagePullPolicy: Always  # Ensure always pulling the latest image
         ports:
         - containerPort: 7070
