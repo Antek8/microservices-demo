@@ -405,6 +405,7 @@ kind: ServiceAccount
 metadata:
   name: shippingservice
 ---
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -437,7 +438,8 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: cartservice
+        image: <your-registry-server>/cartservice:latest  # Ensure this is correct
+        imagePullPolicy: Always  # Ensure always pulling the latest image
         ports:
         - containerPort: 7070
         env:
@@ -460,6 +462,8 @@ spec:
           periodSeconds: 5  # Increased frequency of liveness checks
           grpc:
             port: 7070
+      imagePullSecrets:
+      - name: regcred  # Ensure this secret is created and configured correctly
 ---
 apiVersion: v1
 kind: Service
@@ -582,6 +586,8 @@ spec:
   minReplicas: 2
   maxReplicas: 10
   targetCPUUtilizationPercentage: 80
+
+
 ---
 apiVersion: apps/v1
 kind: Deployment
