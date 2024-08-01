@@ -28,6 +28,9 @@ import (
 	"strings"
 	"time"
 
+	"log"
+ 	"github.com/cenkalti/backoff/v4"
+
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -69,9 +72,27 @@ func (fe *frontendServer) homeHandler(w http.ResponseWriter, r *http.Request) {
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve products"), http.StatusInternalServerError)
 		return
 	}
-	cart, err := fe.getCart(r.Context(), sessionID(r))
+	cart, err := fe.getCartWithRetry(r.Context(), sessionID(r)) // Replaced here
 	if err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve cart"), http.StatusInternalServerError)
+		log.WithField("error", err).Warn("failed to fetch cart, showing fallback products")
+	
+		// Fallback logic to fetch products or recommendations
+		products, prodErr := fe.getProducts(r.Context())
+		if prodErr != nil {
+			renderHTTPError(log, r, w, errors.Wrap(prodErr, "could not retrieve products"), http.StatusInternalServerError)
+			return
+		}
+	
+		if err := templates.ExecuteTemplate(w, "fallback_cart", injectCommonTemplateData(r, map[string]interface{}{
+			"show_currency": true,
+			"currencies":    currencies,
+			"products":      products,
+			"cart_size":     0,
+			"banner_color":  os.Getenv("BANNER_COLOR"),
+			"ad":            fe.chooseAd(r.Context(), []string{}, log),
+		})); err != nil {
+			log.Error(err)
+		}
 		return
 	}
 
@@ -162,12 +183,29 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	cart, err := fe.getCart(r.Context(), sessionID(r))
+	cart, err := fe.getCartWithRetry(r.Context(), sessionID(r)) // Replaced here
 	if err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve cart"), http.StatusInternalServerError)
-		return
-	}
+    log.WithField("error", err).Warn("failed to fetch cart, showing fallback products")
 
+    // Fallback logic to fetch products or recommendations
+    products, prodErr := fe.getProducts(r.Context())
+    if prodErr != nil {
+        renderHTTPError(log, r, w, errors.Wrap(prodErr, "could not retrieve products"), http.StatusInternalServerError)
+        return
+    }
+
+    if err := templates.ExecuteTemplate(w, "fallback_cart", injectCommonTemplateData(r, map[string]interface{}{
+        "show_currency": true,
+        "currencies":    currencies,
+        "products":      products,
+        "cart_size":     0,
+        "banner_color":  os.Getenv("BANNER_COLOR"),
+        "ad":            fe.chooseAd(r.Context(), []string{}, log),
+    })); err != nil {
+        log.Error(err)
+    }
+    return
+	}	
 	price, err := fe.convertCurrency(r.Context(), p.GetPriceUsd(), currentCurrency(r))
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "failed to convert currency"), http.StatusInternalServerError)
@@ -251,18 +289,38 @@ func (fe *frontendServer) emptyCartHandler(w http.ResponseWriter, r *http.Reques
 func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request) {
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	log.Debug("view user cart")
+
 	currencies, err := fe.getCurrencies(r.Context())
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve currencies"), http.StatusInternalServerError)
 		return
 	}
-	cart, err := fe.getCart(r.Context(), sessionID(r))
+
+	cart, err := fe.getCartWithRetry(r.Context(), sessionID(r)) // Replaced here
 	if err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve cart"), http.StatusInternalServerError)
-		return
+    log.WithField("error", err).Warn("failed to fetch cart, showing fallback products")
+
+    // Fallback logic to fetch products or recommendations
+    products, prodErr := fe.getProducts(r.Context())
+    if prodErr != nil {
+        renderHTTPError(log, r, w, errors.Wrap(prodErr, "could not retrieve products"), http.StatusInternalServerError)
+        return
+    }
+
+    if err := templates.ExecuteTemplate(w, "fallback_cart", injectCommonTemplateData(r, map[string]interface{}{
+        "show_currency": true,
+        "currencies":    currencies,
+        "products":      products,
+        "cart_size":     0,
+        "banner_color":  os.Getenv("BANNER_COLOR"),
+        "ad":            fe.chooseAd(r.Context(), []string{}, log),
+    })); err != nil {
+        log.Error(err)
+    }
+    return
 	}
 
-	// ignores the error retrieving recommendations since it is not critical
+	// Normal cart rendering logic if cart fetch succeeds
 	recommendations, err := fe.getRecommendations(r.Context(), sessionID(r), cartIDs(cart))
 	if err != nil {
 		log.WithField("error", err).Warn("failed to get product recommendations")
@@ -316,6 +374,7 @@ func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request
 		log.Println(err)
 	}
 }
+
 
 func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Request) {
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
@@ -631,4 +690,31 @@ func stringinSlice(slice []string, val string) bool {
 		}
 	}
 	return false
+}
+func (fe *frontendServer) getCartWithRetry(ctx context.Context, userID string) ([]*pb.CartItem, error) {
+    var resp *pb.Cart
+    var err error
+
+    retryPolicy := backoff.WithContext(backoff.NewExponentialBackOff(), ctx)
+    err = backoff.Retry(func() error {
+        // Create a new CartService client using the connection fe.cartSvcConn
+        cartServiceClient := pb.NewCartServiceClient(fe.cartSvcConn)
+        
+        // Create a new GetCartRequest with the userID
+        request := &pb.GetCartRequest{UserId: userID}
+        
+        // Call the GetCart method on the CartService client
+        resp, err = cartServiceClient.GetCart(ctx, request)
+        if err != nil {
+            log.Println("Failed to fetch cart, retrying...", err)
+            return err
+        }
+        return nil
+    }, retryPolicy)
+
+    if err != nil {
+        return nil, errors.Wrap(err, "failed to fetch cart after retries")
+    }
+
+    return resp.GetItems(), nil
 }
