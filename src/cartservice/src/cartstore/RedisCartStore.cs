@@ -11,96 +11,152 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 using System;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading.Tasks;
 using Grpc.Core;
 using Microsoft.Extensions.Caching.Distributed;
 using Google.Protobuf;
+using Polly;
+using Polly.Retry;
 
 namespace cartservice.cartstore
 {
     public class RedisCartStore : ICartStore
     {
         private readonly IDistributedCache _cache;
+        private readonly ConcurrentDictionary<string, Hipstershop.Cart> _fallbackCache;
+        private readonly AsyncRetryPolicy _retryPolicy;
 
         public RedisCartStore(IDistributedCache cache)
         {
             _cache = cache;
+            _fallbackCache = new ConcurrentDictionary<string, Hipstershop.Cart>();
+            _retryPolicy = Policy.Handle<Exception>()
+                .WaitAndRetryAsync(
+                    retryCount: 3, // Retry 3 times
+                    sleepDurationProvider: attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt)), // Exponential backoff
+                    onRetry: (exception, timeSpan, retryCount, context) =>
+                    {
+                        Console.WriteLine($"Retry {retryCount} encountered an error: {exception.Message}. Waiting {timeSpan} before next retry.");
+                    });
         }
 
         public async Task AddItemAsync(string userId, string productId, int quantity)
         {
             Console.WriteLine($"AddItemAsync called with userId={userId}, productId={productId}, quantity={quantity}");
 
-            try
+            await _retryPolicy.ExecuteAsync(async () =>
             {
-                Hipstershop.Cart cart;
-                var value = await _cache.GetAsync(userId);
-                if (value == null)
+                try
                 {
-                    cart = new Hipstershop.Cart();
-                    cart.UserId = userId;
-                    cart.Items.Add(new Hipstershop.CartItem { ProductId = productId, Quantity = quantity });
-                }
-                else
-                {
-                    cart = Hipstershop.Cart.Parser.ParseFrom(value);
-                    var existingItem = cart.Items.SingleOrDefault(i => i.ProductId == productId);
-                    if (existingItem == null)
+                    Hipstershop.Cart cart;
+                    var value = await _cache.GetAsync(userId);
+                    if (value == null)
                     {
+                        cart = new Hipstershop.Cart();
+                        cart.UserId = userId;
                         cart.Items.Add(new Hipstershop.CartItem { ProductId = productId, Quantity = quantity });
                     }
                     else
                     {
-                        existingItem.Quantity += quantity;
+                        cart = Hipstershop.Cart.Parser.ParseFrom(value);
+                        var existingItem = cart.Items.SingleOrDefault(i => i.ProductId == productId);
+                        if (existingItem == null)
+                        {
+                            cart.Items.Add(new Hipstershop.CartItem { ProductId = productId, Quantity = quantity });
+                        }
+                        else
+                        {
+                            existingItem.Quantity += quantity;
+                        }
+                    }
+                    await _cache.SetAsync(userId, cart.ToByteArray());
+                    _fallbackCache[userId] = cart; // Update fallback cache
+                }
+                catch (Exception ex)
+                {
+                    // Use fallback cache in case of failure
+                    Console.WriteLine($"Failed to access Redis, falling back to in-memory cache: {ex.Message}");
+                    if (!_fallbackCache.TryGetValue(userId, out var cart))
+                    {
+                        cart = new Hipstershop.Cart();
+                        cart.UserId = userId;
+                        cart.Items.Add(new Hipstershop.CartItem { ProductId = productId, Quantity = quantity });
+                        _fallbackCache[userId] = cart;
+                    }
+                    else
+                    {
+                        var existingItem = cart.Items.SingleOrDefault(i => i.ProductId == productId);
+                        if (existingItem == null)
+                        {
+                            cart.Items.Add(new Hipstershop.CartItem { ProductId = productId, Quantity = quantity });
+                        }
+                        else
+                        {
+                            existingItem.Quantity += quantity;
+                        }
                     }
                 }
-                await _cache.SetAsync(userId, cart.ToByteArray());
-            }
-            catch (Exception ex)
-            {
-                throw new RpcException(new Status(StatusCode.FailedPrecondition, $"Can't access cart storage. {ex}"));
-            }
+            });
         }
 
         public async Task EmptyCartAsync(string userId)
         {
             Console.WriteLine($"EmptyCartAsync called with userId={userId}");
 
-            try
+            await _retryPolicy.ExecuteAsync(async () =>
             {
-                var cart = new Hipstershop.Cart();
-                await _cache.SetAsync(userId, cart.ToByteArray());
-            }
-            catch (Exception ex)
-            {
-                throw new RpcException(new Status(StatusCode.FailedPrecondition, $"Can't access cart storage. {ex}"));
-            }
+                try
+                {
+                    var cart = new Hipstershop.Cart();
+                    await _cache.SetAsync(userId, cart.ToByteArray());
+                    _fallbackCache[userId] = cart; // Update fallback cache
+                }
+                catch (Exception ex)
+                {
+                    // Use fallback cache in case of failure
+                    Console.WriteLine($"Failed to access Redis, falling back to in-memory cache: {ex.Message}");
+                    _fallbackCache[userId] = new Hipstershop.Cart();
+                }
+            });
         }
 
         public async Task<Hipstershop.Cart> GetCartAsync(string userId)
         {
             Console.WriteLine($"GetCartAsync called with userId={userId}");
 
-            try
+            return await _retryPolicy.ExecuteAsync(async () =>
             {
-                // Access the cart from the cache
-                var value = await _cache.GetAsync(userId);
-
-                if (value != null)
+                try
                 {
-                    return Hipstershop.Cart.Parser.ParseFrom(value);
-                }
+                    // Access the cart from the cache
+                    var value = await _cache.GetAsync(userId);
 
-                // We decided to return empty cart in cases when user wasn't in the cache before
-                return new Hipstershop.Cart();
-            }
-            catch (Exception ex)
-            {
-                throw new RpcException(new Status(StatusCode.FailedPrecondition, $"Can't access cart storage. {ex}"));
-            }
+                    if (value != null)
+                    {
+                        var cart = Hipstershop.Cart.Parser.ParseFrom(value);
+                        _fallbackCache[userId] = cart; // Update fallback cache
+                        return cart;
+                    }
+
+                    // We decided to return empty cart in cases when user wasn't in the cache before
+                    return new Hipstershop.Cart();
+                }
+                catch (Exception ex)
+                {
+                    // Use fallback cache in case of failure
+                    Console.WriteLine($"Failed to access Redis, falling back to in-memory cache: {ex.Message}");
+                    if (_fallbackCache.TryGetValue(userId, out var cart))
+                    {
+                        return cart;
+                    }
+
+                    // Return an empty cart if the fallback cache doesn't have the entry
+                    return new Hipstershop.Cart();
+                }
+            });
         }
 
         public bool Ping()

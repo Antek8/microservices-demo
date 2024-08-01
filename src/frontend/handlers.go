@@ -28,7 +28,7 @@ import (
 	"strings"
 	"time"
 
-	"log"
+
  	"github.com/cenkalti/backoff/v4"
 
 	"github.com/gorilla/mux"
