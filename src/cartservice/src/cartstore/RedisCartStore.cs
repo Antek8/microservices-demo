@@ -19,7 +19,9 @@ using Grpc.Core;
 using Microsoft.Extensions.Caching.Distributed;
 using Google.Protobuf;
 using Polly;
+using Polly.CircuitBreaker;
 using Polly.Retry;
+using Polly.Wrap;
 
 namespace cartservice.cartstore
 {
@@ -27,27 +29,42 @@ namespace cartservice.cartstore
     {
         private readonly IDistributedCache _cache;
         private readonly ConcurrentDictionary<string, Hipstershop.Cart> _fallbackCache;
-        private readonly AsyncRetryPolicy _retryPolicy;
+        private readonly AsyncPolicyWrap _policyWrap;
 
         public RedisCartStore(IDistributedCache cache)
         {
             _cache = cache;
             _fallbackCache = new ConcurrentDictionary<string, Hipstershop.Cart>();
-            _retryPolicy = Policy.Handle<Exception>()
+            
+            var retryPolicy = Policy.Handle<Exception>()
                 .WaitAndRetryAsync(
-                    retryCount: 3, // Retry 3 times
-                    sleepDurationProvider: attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt)), // Exponential backoff
+                    retryCount: 3,
+                    sleepDurationProvider: attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt)),
                     onRetry: (exception, timeSpan, retryCount, context) =>
                     {
                         Console.WriteLine($"Retry {retryCount} encountered an error: {exception.Message}. Waiting {timeSpan} before next retry.");
                     });
+
+            var circuitBreakerPolicy = Policy.Handle<Exception>()
+                .CircuitBreakerAsync(
+                    exceptionsAllowedBeforeBreaking: 2,
+                    durationOfBreak: TimeSpan.FromMinutes(1),
+                    onBreak: (exception, duration) =>
+                    {
+                        Console.WriteLine($"Circuit breaker opened due to: {exception.Message}");
+                    },
+                    onReset: () => Console.WriteLine("Circuit breaker reset."),
+                    onHalfOpen: () => Console.WriteLine("Circuit breaker half-open, next call is a trial.")
+                );
+
+            _policyWrap = Policy.WrapAsync(retryPolicy, circuitBreakerPolicy);
         }
 
         public async Task AddItemAsync(string userId, string productId, int quantity)
         {
             Console.WriteLine($"AddItemAsync called with userId={userId}, productId={productId}, quantity={quantity}");
 
-            await _retryPolicy.ExecuteAsync(async () =>
+            await _policyWrap.ExecuteAsync(async () =>
             {
                 try
                 {
@@ -106,7 +123,7 @@ namespace cartservice.cartstore
         {
             Console.WriteLine($"EmptyCartAsync called with userId={userId}");
 
-            await _retryPolicy.ExecuteAsync(async () =>
+            await _policyWrap.ExecuteAsync(async () =>
             {
                 try
                 {
@@ -127,7 +144,7 @@ namespace cartservice.cartstore
         {
             Console.WriteLine($"GetCartAsync called with userId={userId}");
 
-            return await _retryPolicy.ExecuteAsync(async () =>
+            return await _policyWrap.ExecuteAsync(async () =>
             {
                 try
                 {
