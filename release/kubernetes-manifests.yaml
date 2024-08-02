@@ -934,7 +934,7 @@ spec:
         sidecar.istio.io/rewriteAppHTTPProbers: "true"
     spec:
       serviceAccountName: frontend
-      terminationGracePeriodSeconds: 30  # Allowing more time for graceful shutdown
+      terminationGracePeriodSeconds: 60  # Allowing more time for graceful shutdown
       securityContext:
         fsGroup: 1000
         runAsGroup: 1000
@@ -1045,7 +1045,7 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: frontend
-  minreplicas: 1
+  minReplicas: 1
   maxReplicas: 10
   targetCPUUtilizationPercentage: 50
 
