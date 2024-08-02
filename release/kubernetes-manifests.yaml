@@ -25,7 +25,7 @@ metadata:
   labels:
     app: currencyservice
 spec:
-  replicas: 3  # Ensuring high availability
+  replicas: 1  # Ensuring high availability
   selector:
     matchLabels:
       app: currencyservice
@@ -118,9 +118,9 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: currencyservice
-  minReplicas: 2
+  minReplicas: 1
   maxReplicas: 10
-  targetCPUUtilizationPercentage: 80
+  targetCPUUtilizationPercentage: 50
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -214,7 +214,7 @@ metadata:
   labels:
     app: productcatalogservice
 spec:
-  replicas: 3  # Ensuring high availability
+  replicas: 1  # Ensuring high availability
   selector:
     matchLabels:
       app: productcatalogservice
@@ -306,9 +306,9 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: productcatalogservice
-  minReplicas: 2
+  minReplicas: 1
   maxReplicas: 10
-  targetCPUUtilizationPercentage: 80
+  targetCPUUtilizationPercentage: 50
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -317,7 +317,7 @@ metadata:
   labels:
     app: checkoutservice
 spec:
-  replicas: 3  # Ensuring high availability
+  replicas: 1  # Ensuring high availability
   selector:
     matchLabels:
       app: checkoutservice
@@ -418,9 +418,9 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: checkoutservice
-  minReplicas: 2
+  minReplicas: 1
   maxReplicas: 10
-  targetCPUUtilizationPercentage: 80
+  targetCPUUtilizationPercentage: 50
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -434,7 +434,7 @@ metadata:
   labels:
     app: shippingservice
 spec:
-  replicas: 3  # Ensuring high availability
+  replicas: 1  # Ensuring high availability
   selector:
     matchLabels:
       app: shippingservice
@@ -526,9 +526,9 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: shippingservice
-  minReplicas: 2
+  minReplicas: 1
   maxReplicas: 10
-  targetCPUUtilizationPercentage: 80
+  targetCPUUtilizationPercentage: 50
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -537,7 +537,7 @@ metadata:
   labels:
     app: cartservice
 spec:
-  replicas: 3  # Ensuring high availability
+  replicas: 1  # Ensuring high availability
   selector:
     matchLabels:
       app: cartservice
@@ -613,7 +613,7 @@ metadata:
   labels:
     app: redis-cart
 spec:
-  replicas: 3  # Ensuring high availability
+  replicas: 1  # Ensuring high availability
   selector:
     matchLabels:
       app: redis-cart
@@ -689,7 +689,7 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: cartservice
-  minReplicas: 4
+  minReplicas: 1
   maxReplicas: 10
   targetCPUUtilizationPercentage: 70
 ---
@@ -704,9 +704,9 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: redis-cart
-  minReplicas: 2
+  minReplicas: 1
   maxReplicas: 10
-  targetCPUUtilizationPercentage: 80
+  targetCPUUtilizationPercentage: 50
 
 ---
 apiVersion: apps/v1
@@ -716,7 +716,7 @@ metadata:
   labels:
     app: emailservice
 spec:
-  replicas: 3  # Ensuring high availability
+  replicas: 1  # Ensuring high availability
   selector:
     matchLabels:
       app: emailservice
@@ -808,9 +808,9 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: emailservice
-  minReplicas: 2
+  minReplicas: 1
   maxReplicas: 10
-  targetCPUUtilizationPercentage: 80
+  targetCPUUtilizationPercentage: 50
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -819,7 +819,7 @@ metadata:
   labels:
     app: paymentservice
 spec:
-  replicas: 3  # Ensuring high availability
+  replicas: 1  # Ensuring high availability
   selector:
     matchLabels:
       app: paymentservice
@@ -911,9 +911,9 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: paymentservice
-  minReplicas: 2
+  minReplicas: 1
   maxReplicas: 10
-  targetCPUUtilizationPercentage: 80
+  targetCPUUtilizationPercentage: 50
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -922,7 +922,7 @@ metadata:
   labels:
     app: frontend
 spec:
-  replicas: 3  # Ensuring high availability
+  replicas: 1  # Ensuring high availability
   selector:
     matchLabels:
       app: frontend
@@ -1045,9 +1045,9 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: frontend
-  minReplicas: 3
+  minreplicas: 1
   maxReplicas: 10
-  targetCPUUtilizationPercentage: 80
+  targetCPUUtilizationPercentage: 50
 
 ---
 apiVersion: apps/v1
@@ -1057,7 +1057,7 @@ metadata:
   labels:
     app: recommendationservice
 spec:
-  replicas: 3  # Ensuring high availability
+  replicas: 1  # Ensuring high availability
   selector:
     matchLabels:
       app: recommendationservice
@@ -1151,9 +1151,9 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: recommendationservice
-  minReplicas: 2
+  minReplicas: 1
   maxReplicas: 10
-  targetCPUUtilizationPercentage: 80
+  targetCPUUtilizationPercentage: 50
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -1162,7 +1162,7 @@ metadata:
   labels:
     app: adservice
 spec:
-  replicas: 3  # Ensuring high availability
+  replicas: 1  # Ensuring high availability
   selector:
     matchLabels:
       app: adservice
@@ -1252,8 +1252,8 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: adservice
-  minReplicas: 2
+  minReplicas: 1
   maxReplicas: 10
-  targetCPUUtilizationPercentage: 80
+  targetCPUUtilizationPercentage: 50
 
 # [END gke_release_kubernetes_manifests_microservices_demo]
