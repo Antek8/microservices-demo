@@ -613,7 +613,7 @@ metadata:
   labels:
     app: redis-cart
 spec:
-  replicas: 2  # Ensuring high availability
+  replicas: 3  # Ensuring high availability
   selector:
     matchLabels:
       app: redis-cart
@@ -689,9 +689,9 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: cartservice
-  minReplicas: 2
+  minReplicas: 4
   maxReplicas: 10
-  targetCPUUtilizationPercentage: 80
+  targetCPUUtilizationPercentage: 70
 ---
 apiVersion: autoscaling/v1
 kind: HorizontalPodAutoscaler
