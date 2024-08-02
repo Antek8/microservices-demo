@@ -224,7 +224,7 @@ spec:
         app: productcatalogservice
     spec:
       serviceAccountName: productcatalogservice
-      terminationGracePeriodSeconds: 30  # Allowing more time for graceful shutdown
+      terminationGracePeriodSeconds: 60  # Allowing more time for graceful shutdown
       securityContext:
         fsGroup: 1000
         runAsGroup: 1000
