@@ -91,7 +91,7 @@ metadata:
   labels:
     app: redis-cart
 spec:
-  replicas: 2  # Ensuring high availability
+  replicas: 3
   selector:
     matchLabels:
       app: redis-cart
@@ -100,6 +100,7 @@ spec:
       labels:
         app: redis-cart
     spec:
+      terminationGracePeriodSeconds: 90
       securityContext:
         fsGroup: 1000
         runAsGroup: 1000
@@ -118,13 +119,15 @@ spec:
         ports:
         - containerPort: 6379
         readinessProbe:
-          initialDelaySeconds: 5  # Adding initial delay for readiness probe
-          periodSeconds: 5
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
           tcpSocket:
             port: 6379
         livenessProbe:
-          initialDelaySeconds: 5  # Adding initial delay for liveness probe
-          periodSeconds: 5
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
           tcpSocket:
             port: 6379
         volumeMounts:
@@ -139,7 +142,18 @@ spec:
             memory: 200Mi
       volumes:
       - name: redis-data
-        emptyDir: {}
+        persistentVolumeClaim:
+          claimName: redis-pvc
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: redis-cart-pdb
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: redis-cart
 ---
 apiVersion: v1
 kind: Service
@@ -156,16 +170,6 @@ spec:
     port: 6379
     targetPort: 6379
 ---
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: redis-cart-pdb
-spec:
-  minAvailable: 1  # Ensuring at least one pod is always available
-  selector:
-    matchLabels:
-      app: redis-cart
----
 apiVersion: autoscaling/v1
 kind: HorizontalPodAutoscaler
 metadata:
@@ -179,7 +183,7 @@ spec:
     name: cartservice
   minReplicas: 2
   maxReplicas: 10
-  targetCPUUtilizationPercentage: 80
+  targetCPUUtilizationPercentage: 70
 ---
 apiVersion: autoscaling/v1
 kind: HorizontalPodAutoscaler
@@ -194,4 +198,4 @@ spec:
     name: redis-cart
   minReplicas: 2
   maxReplicas: 10
-  targetCPUUtilizationPercentage: 80
+  targetCPUUtilizationPercentage: 70
